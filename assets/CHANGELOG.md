@@ -1,6 +1,8 @@
 # Changelog
 
 ## 1.15.0
+- Fix(ai): Upgrade langchain packages to upstream (langchain 0.9.0 / langchain_core 0.5.0 / langchain_openai 0.9.0 with openai_dart 8.1.0), fixing the crash when OpenAI-compatible APIs (e.g. sensenova) return non-standard finish_reason values like eos/end_turn
+- Ci: Fork-friendly release pipeline — manual workflow_dispatch trigger, Android/Windows builds without signing secrets, GitHub Release for alpha builds
 - Chore(ui): Drop experimental forui redesign; keep Material shell and prior issue fixes
 - Fix(reader): Honor writing-direction setting for EPUBs that set writing-mode on body (e.g. vertical Japanese books) (#867)
 - Fix(log): Silence Chromium iframe sandbox WebView warning that already had an ignore entry but failed exact match due to trailing period (#877)
