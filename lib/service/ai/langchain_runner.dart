@@ -4,6 +4,9 @@ import 'dart:convert';
 import 'package:anx_reader/utils/ai_reasoning_parser.dart';
 import 'package:anx_reader/utils/log/common.dart';
 import 'package:langchain/langchain.dart';
+import 'package:langchain_anthropic/langchain_anthropic.dart';
+import 'package:langchain_google/langchain_google.dart';
+import 'package:langchain_openai/langchain_openai.dart';
 
 class CancelableLangchainRunner {
   static const String thinkTag = '<think/>';
@@ -29,8 +32,11 @@ class CancelableLangchainRunner {
         final source = model.stream(prompt);
         _subscription = source.listen(
           (event) {
-            final rawChunk = event.output.content;
-            final reasoningChunk = event.output.reasoningContent;
+            final rawChunk = event.output.contentAsString;
+            final reasoningChunk = event.output.content
+                .whereType<AIChatMessageReasoningBlock>()
+                .map((b) => b.reasoning)
+                .join();
             if (rawChunk.isEmpty && reasoningChunk.isEmpty) {
               return;
             }
@@ -190,7 +196,17 @@ class CancelableLangchainRunner {
           }
 
           final prompt = PromptValue.chat(promptMessages);
-          final options = model.defaultOptions.copyWith(tools: toolSpecs);
+          final baseOptions = model.defaultOptions;
+          final ChatModelOptions options = switch (model) {
+            ChatOpenAI _ =>
+              (baseOptions as ChatOpenAIOptions).copyWith(tools: toolSpecs),
+            ChatAnthropic _ =>
+              (baseOptions as ChatAnthropicOptions).copyWith(tools: toolSpecs),
+            ChatGoogleGenerativeAI _ => (baseOptions
+                    as ChatGoogleGenerativeAIOptions)
+                .copyWith(tools: toolSpecs),
+            _ => baseOptions.copyWith(tools: toolSpecs),
+          };
 
           ChatResult? aggregated;
           final completer = Completer<void>();
@@ -202,7 +218,10 @@ class CancelableLangchainRunner {
                   ? normalizedChunk
                   : aggregated!.concat(normalizedChunk);
               final output = aggregated!.output;
-              final reasoningChunk = normalizedChunk.output.reasoningContent;
+              final reasoningChunk = normalizedChunk.output.content
+                  .whereType<AIChatMessageReasoningBlock>()
+                  .map((b) => b.reasoning)
+                  .join();
 
               if (reasoningChunk.isNotEmpty) {
                 appendThinkingChunk(reasoningChunk);
@@ -210,7 +229,7 @@ class CancelableLangchainRunner {
               }
 
               if (output.toolCalls.isEmpty) {
-                final textChunk = normalizedChunk.output.content;
+                final textChunk = normalizedChunk.output.contentAsString;
                 if (textChunk.isNotEmpty) {
                   appendReplyChunk(textChunk);
                   emit();
@@ -339,12 +358,23 @@ class CancelableLangchainRunner {
   }
 
   ChatResult _normalizeThinkChunk(ChatResult chunk) {
-    final content = _normalizeThinkText(chunk.output.content);
-    final reasoningContent = _normalizeThinkText(chunk.output.reasoningContent);
+    // 0.5.0: 文本与 reasoning 都拆分为独立内容块。
+    final rawText = chunk.output.contentAsString;
+    final rawReasoning = chunk.output.content
+        .whereType<AIChatMessageReasoningBlock>()
+        .map((b) => b.reasoning)
+        .join();
+
+    final content = _normalizeThinkText(rawText);
+    final reasoningContent = _normalizeThinkText(rawReasoning);
+
     final output = AIChatMessage(
-      content: content,
-      reasoningContent: reasoningContent,
-      toolCalls: chunk.output.toolCalls,
+      content: [
+        if (reasoningContent.isNotEmpty)
+          AIChatMessageReasoningBlock(reasoning: reasoningContent),
+        if (content.isNotEmpty) AIChatMessageTextBlock(text: content),
+        ...chunk.output.toolCalls,
+      ],
     );
 
     return ChatResult(
@@ -424,10 +454,13 @@ class CancelableLangchainRunner {
       return message;
     }
 
+    // 0.5.0: toolCalls 不可再通过命名参数传入；把它们重新塞回 content。
+    // 用 is! AIChatMessageToolCall 保留所有非 tool 块（reasoning/text/media 等）。
     return AIChatMessage(
-      content: message.content,
-      reasoningContent: message.reasoningContent,
-      toolCalls: enrichedToolCalls,
+      content: [
+        ...message.content.where((b) => b is! AIChatMessageToolCall),
+        ...enrichedToolCalls,
+      ],
     );
   }
 

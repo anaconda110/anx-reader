@@ -140,11 +140,17 @@ String composeReasoningEnvelope({
 }
 
 String chatMessageDisplayContent(ChatMessage message) {
-  if (message is AIChatMessage && message.reasoningContent.isNotEmpty) {
-    return composeReasoningEnvelope(
-      answerContent: message.content,
-      reasoningContent: message.reasoningContent,
-    );
+  if (message is AIChatMessage) {
+    final reasoningBlocks = message.content
+        .whereType<AIChatMessageReasoningBlock>()
+        .toList(growable: false);
+    if (reasoningBlocks.isNotEmpty) {
+      return composeReasoningEnvelope(
+        answerContent: message.contentAsString,
+        reasoningContent:
+            reasoningBlocks.map((b) => b.reasoning).join(),
+      );
+    }
   }
   return message.contentAsString;
 }
@@ -155,9 +161,13 @@ AIChatMessage assistantMessageFromDisplayContent(
 }) {
   final envelope = splitReasoningEnvelope(content);
   return AIChatMessage(
-    content: envelope.answerContent,
-    reasoningContent: envelope.reasoningContent,
-    toolCalls: toolCalls,
+    content: [
+      if (envelope.reasoningContent.isNotEmpty)
+        AIChatMessageReasoningBlock(reasoning: envelope.reasoningContent),
+      if (envelope.answerContent.isNotEmpty)
+        AIChatMessageTextBlock(text: envelope.answerContent),
+      ...toolCalls,
+    ],
   );
 }
 

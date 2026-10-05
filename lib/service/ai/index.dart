@@ -344,19 +344,34 @@ String _mapError(Object error) {
 List<ChatMessage> _sanitizeMessagesForPrompt(List<ChatMessage> messages) {
   return messages.map((message) {
     if (message is AIChatMessage) {
-      if (message.reasoningContent.isNotEmpty) {
+      // 0.5.0: reasoning 已迁移到独立的 AIChatMessageReasoningBlock。
+      final reasoningBlocks = message.content
+          .whereType<AIChatMessageReasoningBlock>()
+          .toList(growable: false);
+      final toolCalls = message.toolCalls;
+
+      if (reasoningBlocks.isNotEmpty) {
+        // 仅保留可见 text 块与 toolCall 块，丢弃 reasoning 块。
         return AIChatMessage(
-          content: message.content,
-          toolCalls: message.toolCalls,
+          content: [
+            ...message.content.whereType<AIChatMessageTextBlock>(),
+            ...toolCalls,
+          ],
         );
       }
-      final plainText = reasoningContentToPlainText(message.content);
-      if (plainText == message.content) {
+
+      // content 在 0.5.0 中是 List<AIChatMessageContentBlock>；
+      // reasoningContentToPlainText 接受 String，因此改为传 contentAsString。
+      final currentText = message.contentAsString;
+      final plainText = reasoningContentToPlainText(currentText);
+      if (plainText == currentText) {
         return message;
       }
       return AIChatMessage(
-        content: plainText,
-        toolCalls: message.toolCalls,
+        content: [
+          if (plainText.isNotEmpty) AIChatMessageTextBlock(text: plainText),
+          ...toolCalls,
+        ],
       );
     }
     return message;

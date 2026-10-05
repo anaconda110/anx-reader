@@ -128,8 +128,11 @@ extension ChatMessagesMapper on List<ChatMessage> {
       return cached;
     }
 
+    // langchain_core 0.5.0: AIChatMessage.content is a list of content blocks;
+    // contentAsString concatenates the visible text blocks.
+    final text = msg.contentAsString;
     final contentParts = <g.Part>[
-      if (msg.content.isNotEmpty) g.TextPart(msg.content),
+      if (text.isNotEmpty) g.TextPart(text),
       if (msg.toolCalls.isNotEmpty)
         ...msg.toolCalls.map(
           (final call) => g.FunctionCallPart(
@@ -180,28 +183,32 @@ extension GenerateContentResponseMapper on g.GenerateContentResponse {
             .toList(growable: false) ??
         <AIChatMessageToolCall>[];
 
+    // langchain_core 0.5.0: content blocks must be passed as a list.
+    final text = candidate.content?.parts
+            .map(
+              (p) => switch (p) {
+                final g.TextPart p => p.text,
+                final g.InlineDataPart p => p.inlineData.data,
+                final g.FileDataPart p => p.fileData.fileUri,
+                g.FunctionResponsePart() => '',
+                g.FunctionCallPart() => '',
+                g.ExecutableCodePart() => '',
+                g.CodeExecutionResultPart() => '',
+                g.VideoMetadataPart() => '',
+                g.ThoughtPart() => '',
+                g.ThoughtSignaturePart() => '',
+                g.PartMetadataPart() => '',
+              },
+            )
+            .nonNulls
+            .join('\n') ??
+        '';
+
     final output = AIChatMessage(
-      content:
-          candidate.content?.parts
-              .map(
-                (p) => switch (p) {
-                  final g.TextPart p => p.text,
-                  final g.InlineDataPart p => p.inlineData.data,
-                  final g.FileDataPart p => p.fileData.fileUri,
-                  g.FunctionResponsePart() => '',
-                  g.FunctionCallPart() => '',
-                  g.ExecutableCodePart() => '',
-                  g.CodeExecutionResultPart() => '',
-                  g.VideoMetadataPart() => '',
-                  g.ThoughtPart() => '',
-                  g.ThoughtSignaturePart() => '',
-                  g.PartMetadataPart() => '',
-                },
-              )
-              .nonNulls
-              .join('\n') ??
-          '',
-      toolCalls: toolCalls,
+      content: [
+        if (text.isNotEmpty) AIChatMessageTextBlock(text: text),
+        ...toolCalls,
+      ],
     );
     _cacheGeminiToolContent(output, candidate.content);
 

@@ -64,7 +64,7 @@ class AiChat extends _$AiChat {
 
     List<ChatMessage> updatedMessages = [
       ...messages,
-      ChatMessage.ai(''),
+      ChatMessage.aiText(''),
     ];
 
     final draftEntry = (entry ??
