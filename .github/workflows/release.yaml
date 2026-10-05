@@ -61,7 +61,8 @@ jobs:
           curl -s "$BASE_NOTIFICATION_URL/Build%20Completed?url=$RUN_URL&level=timeSensitive&icon=https://github.githubassets.com/assets/GitHub-Mark-ea2971cee799.png" || echo "Notification failed, continuing..."
 
   create-release:
-    if: inputs.is_alpha != 'true'
+    # Fork: create a GitHub Release for alpha builds too (prerelease), since
+    # the Telegram/Play Store channels are not used on this fork.
     runs-on: ubuntu-latest
     env:
       BASE_NOTIFICATION_URL: ${{ secrets.NOTIFICATION_URL }}/Anx-Reader%20Action
@@ -90,7 +91,7 @@ jobs:
             artifacts/ios-artifacts/*.zip
           body: ${{ inputs.release_notes }}
           generate_release_notes: false
-          prerelease: ${{ inputs.is_beta == 'true' }}
+          prerelease: ${{ inputs.is_beta == 'true' || inputs.is_alpha == 'true' }}
 
       - name: Format changelog for Telegram
         if: ${{ inputs.is_beta == 'true' || (inputs.is_beta != 'true' && inputs.is_alpha != 'true') }}

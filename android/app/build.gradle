@@ -68,8 +68,9 @@ android {
 
     buildTypes {
         release {
-            // signingConfig signingConfigs.debug
-            signingConfig signingConfigs.release
+            // Fork: fall back to debug signing when no keystore is configured,
+            // so release APKs can be built without CI signing secrets.
+            signingConfig keystorePropertiesFile.exists() ? signingConfigs.release : signingConfigs.debug
 
         }
     }

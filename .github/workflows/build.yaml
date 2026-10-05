@@ -6,13 +6,24 @@ on:
       - 'v[0-9]*.[0-9]*.[0-9]*'
       - 'v[0-9]*.[0-9]*.[0-9]*-alpha.[0-9]*'
       - 'v[0-9]*.[0-9]*.[0-9]*-beta.[0-9]*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (e.g. v1.15.0-alpha.26). Leave empty to build current HEAD.'
+        required: false
+        type: string
 
 permissions:
   contents: write
 
+# Fork pipeline: Android + Windows only.
+# iOS / macOS / App Store / Play Store jobs were removed because they need
+# Apple & Google signing credentials that are not configured on this fork.
 jobs:
   setup:
     uses: ./.github/workflows/setup.yaml
+    with:
+      tag: ${{ inputs.tag }}
     secrets:
       NOTIFICATION_URL: ${{ secrets.NOTIFICATION_URL }}
 
@@ -28,14 +39,6 @@ jobs:
       KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
 
-  build-ios:
-    needs: setup
-    uses: ./.github/workflows/build-ios.yaml
-    with:
-      version: ${{ needs.setup.outputs.version }}
-      flutter_version: ${{ needs.setup.outputs.flutter_version }}
-      xcode_version: ${{ needs.setup.outputs.xcode_version }}
-
   build-windows:
     needs: setup
     uses: ./.github/workflows/build-windows.yaml
@@ -46,47 +49,8 @@ jobs:
       SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
       NOTIFICATION_URL: ${{ secrets.NOTIFICATION_URL }}
 
-  build-macos:
-    needs: setup
-    uses: ./.github/workflows/build-macos.yaml
-    with:
-      version: ${{ needs.setup.outputs.version }}
-      flutter_version: ${{ needs.setup.outputs.flutter_version }}
-      xcode_version: ${{ needs.setup.outputs.xcode_version }}
-
-  build-appstore:
-    needs: setup
-    uses: ./.github/workflows/build-appstore.yaml
-    with:
-      version: ${{ needs.setup.outputs.version }}
-      flutter_version: ${{ needs.setup.outputs.flutter_version }}
-      xcode_version: ${{ needs.setup.outputs.xcode_version }}
-    secrets:
-      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
-      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-      MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
-      APP_BUNDLE_ID: ${{ secrets.APP_BUNDLE_ID }}
-
-  build-playstore:
-    needs: setup
-    uses: ./.github/workflows/build-playstore.yaml
-    with:
-      version: ${{ needs.setup.outputs.version }}
-      flutter_version: ${{ needs.setup.outputs.flutter_version }}
-      is_alpha: ${{ needs.setup.outputs.is_alpha }}
-      is_beta: ${{ needs.setup.outputs.is_beta }}
-    secrets:
-      PLAY_STORE_JSON_KEY: ${{ secrets.PLAY_STORE_JSON_KEY }}
-      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-
   release:
-    # needs: [setup, build-android, build-ios, build-windows, build-macos, build-appstore, build-playstore]
-    needs: [setup, build-android, build-ios, build-windows, build-macos, build-appstore]
+    needs: [setup, build-android, build-windows]
     uses: ./.github/workflows/release.yaml
     with:
       tag: ${{ needs.setup.outputs.tag }}

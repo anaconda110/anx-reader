@@ -2,6 +2,11 @@ name: Setup Environment
 
 on:
   workflow_call:
+    inputs:
+      tag:
+        description: "Git tag to build (used for workflow_dispatch releases)"
+        required: false
+        type: string
     secrets:
       NOTIFICATION_URL:
         required: true
@@ -50,6 +55,8 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Read Flutter version
         id: get_flutter_version
@@ -67,7 +74,11 @@ jobs:
         id: get_version
         shell: bash
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
+          if [ -n "${{ inputs.tag }}" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
 
           PUBSPEC_VERSION=$( grep '^version:' pubspec.yaml | awk '{print $2}' | cut -d '+' -f 1 )
