@@ -118,9 +118,16 @@ Stream<String> _generateStream({
           );
 
           // Advance key index for round-robin rotation after successful call
-          registry.ref!
-              .read(aiProvidersProvider.notifier)
-              .advanceKeyIndex(provider.id);
+          try {
+            registry.ref!
+                .read(aiProvidersProvider.notifier)
+                .advanceKeyIndex(provider.id);
+          } catch (e) {
+            // Persistence failure must not fall through to the legacy path,
+            // which would append a misleading "not configured" message over
+            // the already-streamed answer.
+            AnxLog.warning('Failed to advance AI key index: $e');
+          }
           return;
         }
       }
@@ -184,14 +191,20 @@ Stream<String> _generateStream({
             );
 
             // Advance key index in persistent storage for round-robin rotation
-            final updatedProviders = providers.map((p) {
-              if (p.id == provider!.id) {
-                return p.copyWith(
-                    keyIndex: p.keyIndex + 1, updatedAt: DateTime.now());
-              }
-              return p;
-            }).toList();
-            Prefs().saveAiProviders(updatedProviders);
+            try {
+              final updatedProviders = providers.map((p) {
+                if (p.id == provider!.id) {
+                  return p.copyWith(
+                      keyIndex: p.keyIndex + 1, updatedAt: DateTime.now());
+                }
+                return p;
+              }).toList();
+              Prefs().saveAiProviders(updatedProviders);
+            } catch (e) {
+              // Same as above: never let key-rotation persistence break the
+              // completed stream or fall through to the legacy path.
+              AnxLog.warning('Failed to persist AI key rotation: $e');
+            }
             return;
           }
         }

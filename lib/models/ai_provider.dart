@@ -117,6 +117,27 @@ abstract class AiProvider with _$AiProvider {
   bool get hasValidKey {
     return apiKeys.any((k) => k.enabled && k.key.isNotEmpty);
   }
+
+  /// Hand-written counterpart to the hand-written [fromJson] factory:
+  /// freezed only generates toJson when fromJson redirects to
+  /// `_$AiProviderFromJson`, which is not the case here.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'logoAsset': logoAsset,
+      'url': url,
+      'protocol': protocol.code,
+      'enabled': enabled,
+      'isBuiltin': isBuiltin,
+      'apiKeys': apiKeys.map((k) => k.toJson()).toList(),
+      'model': model,
+      'reasoningEffort': reasoningEffort.code,
+      'keyIndex': keyIndex,
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+    };
+  }
 }
 
 @freezed
